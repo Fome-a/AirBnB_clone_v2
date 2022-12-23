@@ -1,54 +1,62 @@
-#!/usr/bin/env bash
-# Puppet:
-package { 'nginx':
-  ensure   => 'present',
-  provider => 'apt'
-} ->
+# Script that configures Nginx server with some folders and files
 
-file { '/data':
-  ensure  => 'directory'
-} ->
-
-file { '/data/web_static':
-  ensure => 'directory'
-} ->
-
-file { '/data/web_static/releases':
-  ensure => 'directory'
-} ->
-
-file { '/data/web_static/releases/test':
-  ensure => 'directory'
-} ->
-
-file { '/data/web_static/shared':
-  ensure => 'directory'
-} ->
-
-file { '/data/web_static/releases/test/index.html':
-  ensure  => 'present',
-  content => "Test release\n"
-} ->
-
-exec {'hbnh_static location':
+exec {'update':
   provider => shell,
-  command  => 'sudo sed -i "/listen 80 default_server;/a\\\tlocation /hbnb_static/ {\n\t\t alias /data/web_static/current/;\n\t}" /etc/nginx/sites-available/default',
-  before   => Exec['restart Nginx'],
-} ->
+  command  => 'sudo apt-get -y update',
+  before   => Exec['install Nginx'],
+}
 
-file { '/data/web_static/current':
-  ensure => 'link',
-  target => '/data/web_static/releases/test'
-} ->
+exec {'install Nginx':
+  provider => shell,
+  command  => 'sudo apt-get -y install nginx',
+  before   => Exec['start Nginx'],
+}
+
+exec {'start Nginx':
+  provider => shell,
+  command  => 'sudo service nginx start',
+  before   => Exec['create first directory'],
+}
+
+exec {'create first directory':
+  provider => shell,
+  command  => 'sudo mkdir -p /data/web_static/releases/test/',
+  before   => Exec['create second directory'],
+}
+
+exec {'create second directory':
+  provider => shell,
+  command  => 'sudo mkdir -p /data/web_static/shared/',
+  before   => Exec['content into html'],
+}
+
+exec {'content into html':
+  provider => shell,
+  command  => 'echo "Holberton School" | sudo tee /data/web_static/releases/test/index.html',
+  before   => Exec['symbolic link'],
+}
+
+exec {'symbolic link':
+  provider => shell,
+  command  => 'sudo ln -sf /data/web_static/releases/test/ /data/web_static/current',
+  before   => Exec['put location'],
+}
+
+exec {'put location':
+  provider => shell,
+  command  => 'sudo sed -i \'38i\\tlocation /hbnb_static/ {\n\t\talias /data/web_static/current/;\n\t\tautoindex off;\n\t}\n\' /etc/nginx/sites-available/default',
+  before   => Exec['restart Nginx'],
+}
+
+exec {'restart Nginx':
+  provider => shell,
+  command  => 'sudo service nginx restart',
+  before   => File['/data/']
+}
 
 file {'/data/':
   ensure  => directory,
   owner   => 'ubuntu',
   group   => 'ubuntu',
   recurse => true,
-} ->
-
-exec {'restart Nginx':
-  provider => shell,
-  command  => 'sudo service nginx restart',
 }
